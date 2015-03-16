@@ -254,17 +254,16 @@ element.description.value = element.description.value:gsub ("</td>", "")
 element.description.value = element.description.value:gsub (">", "")
 
 element.string = [[
-{ordercode=]]..element.ordercode.value..[[}
-{manufacturer=]]..element.manufacturer.value..[[}
-{mancode=]]..element.manufacturercode.value..[[}
-{description=]]..element.description.value..[[}
-{price=]]..element.price.value..[[}
-{priceqty=10}
-{url=]]..url..[[}
+{]]..properties.ordercode..[[=]]..element.ordercode.value..[[}
+{]]..properties.manufacturer..[[=]]..element.manufacturer.value..[[}
+{]]..properties.manufacturercode..[[=]]..element.manufacturercode.value..[[}
+{]]..properties.description..[[=]]..element.description.value..[[}
+{]]..properties.price..[[=]]..element.price.value..[[}
+{]]..properties.priceqty..[[=10}
+{]]..properties.url..[[=]]..url..[[}
 ]]
 
-element.clipboard = "{ordercode="..element.ordercode.value.."}\n{manufacturer="..element.manufacturer.value.."}\n{mancode="..element.manufacturercode.value.."}\n{description="..element.description.value.."}\n{price="..element.price.value.."}\n{priceqty=10}\n{url="..url.."}\n"
-
+-- Print in stoud
 print (element.string)
 
 PostClipboard (element.string)
