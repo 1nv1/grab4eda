@@ -1,0 +1,270 @@
+#!/usr/bin/lua 
+
+-- [[ utils ]] ----------------------------------------------------------------
+local function pipeCmd (cmd)
+    local ret
+    local command = io.popen(cmd)
+    local tmp = command:read("*a")
+    io.close(command)
+    ret = string.gsub(tmp, "\n", "") -- Remove line break
+    return ret
+end
+
+local function GetDigiKeyUrl (url)
+  return (pipeCmd("curl -L --user-agent Mozilla/4.0 --silent "..url))
+end
+
+local function PostClipboard (text) 
+  local n = "tmp-"..os.date()
+  n = n:gsub (" ","")
+  n = n:gsub (":","")
+  local f = io.open ("/tmp/"..n, "w+")
+  f:write (text)
+  f:close ()
+  pipeCmd ("xclip -loops 1 -selection c /tmp/"..n)
+  pipeCmd ("rm /tmp/"..n)
+end
+
+function ReadPropertiesFile (file, parameters)
+    local tbl_config = {}
+    local i
+    local cnf = {}
+    local asgn = {}
+    local line
+    local tmp
+    local k, v, y, w
+    local found = false
+    local pf_config = io.open(file,'r')
+    -- Split a string (str) according a pattern (pat).
+    local function split(str, pat)
+            local t = {}  -- NOTE: use {n = 0} in Lua-5.0
+            local fpat = "(.-)" .. pat
+            local last_end = 1
+            local s, e, cap = str:find(fpat, 1)
+            while s do
+              if s ~= 1 or cap ~= "" then
+             table.insert(t,cap)
+              end
+              last_end = e+1
+              s, e, cap = str:find(fpat, last_end)
+            end
+            if last_end <= #str then
+              cap = str:sub(last_end)
+              table.insert(t, cap)
+            end
+            return t
+    end
+    ----
+    if pf_config == nil then return parameters end
+    -- Leo linea a línea el archivo
+    for line in pf_config:lines() do
+        --i = 1
+        tmp = line:gsub("%s+", "")   -- Elimino los espacios en blanco
+        --print (tmp)
+        -- Reviso si no es un comentario para proseguir
+        if tmp:sub(1,1) ~= '#' then
+            -- Ahora separo en '='
+            cnf = split(line, '=')
+            -- Por lo mínimo deben aparecer dos subgrupos
+            if #cnf >= 2 then
+                cnf[1] = cnf[1]:gsub("%s+", "")
+                -- Revisamos si el parámetro es válido:
+                found = false
+                for k,v in pairs (parameters) do
+                    --print(tostring(k), tostring(cnf[1]))
+                    if tostring(k) == tostring(cnf[1]) then 
+                        found = true
+                        break
+                    end
+                end
+                if found == true then
+                    -- Eliminamos los espacios en blancos de los comentarios     
+                    tmp = cnf[2]:gsub("%s+", "")
+                    if tmp:sub(1,1) ~= '#' then -- ¿La asignación no es un comentario?
+                        asgn = split (cnf[2], '#') -- Vamos a buscar los comentarios...
+                        if tonumber(asgn[1]) == nil then
+                            -- Puede ser un string
+                            i = 1 
+                            while asgn[1]:sub(i,i) == ' ' or asgn[1]:sub(i,i) == '\t' do i = i + 1 end
+                            if asgn[1]:sub(i,i) == '"' then
+                                if i <= #asgn[1] then
+                                    asgn[1] = asgn[1]:sub(i + 1,#asgn[1])
+                                end
+                                i = #asgn[1]
+                                while asgn[1]:sub(i,i) == ' ' or asgn[1]:sub(i,i) == '\t' do i = i - 1 end
+                                if asgn[1]:sub(i,i) == '"' then                                
+                                    if i+1 >= 1 then
+                                        tbl_config[cnf[1]] = tostring(asgn[1]:sub(1, i-1))
+                                    end
+                                end
+                            end
+                        else 
+                            -- Es un numero
+                            tbl_config[cnf[1]] = tonumber(asgn[1])
+                        end
+                    end
+                end
+            end
+        end
+    end
+    -- Por último revisamos que parámetros no estaban y los dejamos por default
+    for k, v in pairs(parameters) do
+        found = false
+        for w, y in pairs(tbl_config) do
+            if tostring(k) == tostring(w) then
+                found = true
+                break
+            end
+        end
+        if found == false then
+            tbl_config[k] = parameters[k]
+        end
+    end
+    return tbl_config
+end
+
+-- [[ utils EOF ]] ------------------------------------------------------------
+
+-- [[ table for element ]] ----------------------------------------------------
+local element = {
+  ordercode = {
+    id = "<td id=reportpartnumber>",
+    value = {},
+    pos = {
+      first,
+      last
+    }
+  },
+  manufacturer = {
+    id = "<h2 class=\"seohtag\" itemprop=\"manufacturer\">",
+    value = {},
+    pos = {
+      first,
+      last
+    }
+  },
+  manufacturercode = {
+    id = "<h1 class=seohtag itemprop=\"model\">",
+    value = {},
+    pos = {
+      first,
+      last
+    }
+  },
+  description = {
+    id = "<td itemprop=\"description\">",
+    value = {},
+    pos = {
+      first,
+      last
+    }
+  },
+  price = {
+    id = "<td align=center >10</td><td align=\"right\" >",
+    value = {},
+    pos = {
+      first,
+      last
+    }
+  },
+  string = {},
+  clipboard = {}
+}
+
+-- [[ table for element EOF]] -------------------------------------------------
+
+-- Gets parameters to work
+properties = {
+  price = "price",
+  priceqty = "priceqty",
+  ordercode = "ordercode",
+  manufacturer = "manufacturer",
+  manufacturercode = "mancode",
+  description = "description",
+  url = "url"
+}
+
+if arg[1] == "--create-config" then
+  pipeCmd ("cd; mkdir .grab4eda/; cd .grab4eda/; touch config")
+  pipeCmd ("echo \"price = \\\""..properties.price.."\\\"\" > ~/.grab4eda/config") -- Clear the file
+  pipeCmd ("echo \"priceqty = \\\""..properties.priceqty.."\\\"\" >> ~/.grab4eda/config")
+  pipeCmd ("echo \"ordercode = \\\""..properties.ordercode.."\\\"\" >> ~/.grab4eda/config")
+  pipeCmd ("echo \"manufacturer = \\\""..properties.manufacturer.."\\\"\" >> ~/.grab4eda/config")
+  pipeCmd ("echo \"manufacturercode = \\\""..properties.manufacturercode.."\\\"\" >> ~/.grab4eda/config")
+  pipeCmd ("echo \"description = \\\""..properties.description.."\\\"\" >> ~/.grab4eda/config")
+  pipeCmd ("echo \"url = \\\""..properties.url.."\\\"\" >> ~/.grab4eda/config")
+  os.exit()
+end
+
+properties = ReadPropertiesFile (pipeCmd("readlink -f ~/.grab4eda/config"), properties)
+
+if arg[1] == nil then 
+  print ("Nothing to do...")
+  os.exit()
+end
+
+local url = tostring(arg[1])
+
+-- Is valid?
+if (url:find("www%pdigikey%pcom/product")) == nil then
+  print ("Page not valid!")
+  os.exit()
+end
+
+local page = GetDigiKeyUrl (url)
+
+if page == nil then
+  print ("Page error!")
+  os.exit()
+end
+
+element.price.pos.first, element.price.pos.last = page:find (element.price.id)
+
+element.ordercode.pos.first, element.ordercode.pos.last = page:find (element.ordercode.id)
+
+element.manufacturer.pos.first, element.manufacturer.pos.last = page:find (element.manufacturer.id, element.ordercode.pos.last)
+
+element.manufacturercode.pos.first, element.manufacturercode.pos.last = page:find (element.manufacturercode.id, element.manufacturer.pos.last)
+
+element.description.pos.first, element.description.pos.last = page:find (element.description.id, element.manufacturercode.pos.last)
+
+--Get the price and the quantity
+element.price.value = string.match (page, ">.-</td>", element.price.pos.last)
+element.price.value = element.price.value:gsub ("</td>", "")
+element.price.value = element.price.value:gsub (">", "")
+
+-- Get the string of "ordercode"
+element.ordercode.value = string.match (page, "/>.-</td>", element.ordercode.pos.last)
+element.ordercode.value = element.ordercode.value:gsub ("</td>", "")
+element.ordercode.value = element.ordercode.value:gsub ("/>", "")
+
+-- Get the string of "manufacturer"
+element.manufacturer.value = string.match (page, "<span itemprop=\"name\">.-</span>", element.manufacturer.pos.last)
+element.manufacturer.value = element.manufacturer.value:gsub ("<span itemprop=\"name\">", "")
+element.manufacturer.value = element.manufacturer.value:gsub ("</span>", "")
+
+--Get the string of "manufacturercode"
+element.manufacturercode.value = string.match (page, ">.-</h1>", element.manufacturercode.pos.last)
+element.manufacturercode.value = element.manufacturercode.value:gsub ("</h1>", "")
+element.manufacturercode.value = element.manufacturercode.value:gsub (">", "")
+
+--Get the string of "description"
+element.description.value = string.match (page, ">.-</td>", element.description.pos.last)
+element.description.value = element.description.value:gsub ("</td>", "")
+element.description.value = element.description.value:gsub (">", "")
+
+element.string = [[
+{ordercode=]]..element.ordercode.value..[[}
+{manufacturer=]]..element.manufacturer.value..[[}
+{mancode=]]..element.manufacturercode.value..[[}
+{description=]]..element.description.value..[[}
+{price=]]..element.price.value..[[}
+{priceqty=10}
+{url=]]..url..[[}
+]]
+
+element.clipboard = "{ordercode="..element.ordercode.value.."}\n{manufacturer="..element.manufacturer.value.."}\n{mancode="..element.manufacturercode.value.."}\n{description="..element.description.value.."}\n{price="..element.price.value.."}\n{priceqty=10}\n{url="..url.."}\n"
+
+print (element.string)
+
+PostClipboard (element.string)
