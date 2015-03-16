@@ -21,4 +21,7 @@ is for use with [Proteus/ISIS](http://www.labcenter.com/index.cfm).
 * xclip
 
 ## Help
+
+Screenshot? You can get one in my [blog](https://electronictechnician.wordpress.com/2015/03/16/little-and-dirty-script-in-lua-for-web-scraping-in-digikey/).
+
 For any question [write me](mailto:nelson.lombardo@gmail.com)
